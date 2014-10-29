@@ -315,13 +315,18 @@ void *sl_find_fit(size_t asize) {
 
     // Get free block from index
     bp = sl_get_free_blk(cl_index, asize);
-    if (bp == NULL) {
-        // No fit found. Allocate.
-        bp = sl_extend_heap(asize);
+    if (bp != NULL) {
         sl_insert(bp, cl_index);
     }
 
     return bp;
+}
+
+
+void *sl_split(void *bp, size_t asize) {
+    // Return the left over block
+    return NULL;
+
 }
 
 void *sl_get_free_blk(int cl_index, size_t asize) {
