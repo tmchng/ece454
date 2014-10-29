@@ -1,0 +1,8 @@
+Ting-Hao (Tim) Cheng 997289090
+Corey Yen 999830090
+
+We set our tile size to be 256 x 16 (pixels), which allowed us to better utilize the L1 cache structure (64B line x 8 associative x 64 sets). This tile size also works well with our data structure, which is an array indexed by algorithm [i * dim + j]. It makes sure that we access nearby entries in order to reduce cache misses, and it also fits within the size of our L1 cache.
+
+Note that both tiling and loop unrolling works better when the image dimension is larger (>=512), but they drag down CPE for smaller dimensions. Therefore, we treat smaller dimensions differently.
+
+We tried various optimization techniques, including tiling, loop unrolling, and other loop optimizations. We tested different tiling sizes and number of loops to unroll, and eventually we arrived at a solution that achieved 2.8 mean speedup.
