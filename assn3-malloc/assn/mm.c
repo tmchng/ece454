@@ -24,13 +24,13 @@
  ********************************************************/
 team_t team = {
     /* Team name */
-    "",
+    "TeamTW",
     /* First member's full name */
-    "",
+    "Ting-Hao Cheng",
     /* First member's email address */
-    "",
+    "chengti2@ecf.utoronto.ca",
     /* Second member's full name (leave blank if none) */
-    "",
+    "Corey Yen",
     /* Second member's email address (leave blank if none) */
     ""
 };
@@ -63,6 +63,27 @@ team_t team = {
 /* Given block ptr bp, compute address of next and previous blocks */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
+
+/**
+ * LAB3
+ * Variables for segregated list
+ */
+#define SL_CLASSES          32
+// Overhead: header, ptr, ptr, footer
+#define SL_OVERHEAD         WSIZE*4
+#define SL_MIN_BLK_SIZE     32
+#define SL_NEXT_FREE_BLKP(p) ((char *)(p))
+#define SL_PREV_FREE_BLKP(p) ((char *)(p) + WSIZE)
+// Indexed by powers of 2
+void *sl[SL_CLASSES];
+
+// Segregated list function declarations
+void *sl_find_fit(size_t asize);
+int sl_get_cl_index_by_size(size_t asize);
+void *sl_get_free_blk(int cl_index, size_t asize);
+void *sl_extend_heap(size_t size);
+void sl_insert(void *bp, int cl_index);
+
 
 void* heap_listp = NULL;
 
@@ -160,14 +181,9 @@ void *extend_heap(size_t words)
 void * find_fit(size_t asize)
 {
     void *bp;
-    for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))
-    {
-        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
-        {
-            return bp;
-        }
-    }
-    return NULL;
+    bp = sl_find_fit(asize);
+
+    return bp;
 }
 
 /**********************************************************
@@ -196,6 +212,10 @@ void mm_free(void *bp)
     PUT(HDRP(bp), PACK(size,0));
     PUT(FTRP(bp), PACK(size,0));
     coalesce(bp);
+
+    // Mark block as deallocated
+    // coalesce
+    // Insert coalesced chunk back to sl
 }
 
 
@@ -214,18 +234,24 @@ void *mm_malloc(size_t size)
     char * bp;
 
     /* Ignore spurious requests */
-    if (size == 0)
+    if (size <= 0)
         return NULL;
 
+    // Add overhead
+    // Calculate alligned size
+    // Find a fit from SL
+    // If no fit found, allocate block for the required size and place it in SL.
+
     /* Adjust block size to include overhead and alignment reqs. */
-    if (size <= DSIZE)
+    asize = size + SL_OVERHEAD;
+    if (asize <= DSIZE)
         asize = 2 * DSIZE;
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE-1))/ DSIZE);
 
     /* Search the free list for a fit */
-    if ((bp = find_fit(asize)) != NULL) {
-        place(bp, asize);
+    if ((bp = sl_find_fit(asize)) != NULL) {
+        //place(bp, asize);
         return bp;
     }
 
@@ -278,3 +304,123 @@ void *mm_realloc(void *ptr, size_t size)
 int mm_check(void){
   return 1;
 }
+
+
+/** Segregated list helper functions **/
+void *sl_find_fit(size_t asize) {
+    void *bp;
+
+    // Calculate index of appropriate size class
+    int cl_index = sl_get_cl_index_by_size(asize);
+
+    // Get free block from index
+    bp = sl_get_free_blk(cl_index, asize);
+    if (bp == NULL) {
+        // No fit found. Allocate.
+        bp = sl_extend_heap(asize);
+        sl_insert(bp, cl_index);
+    }
+
+    return bp;
+}
+
+void *sl_get_free_blk(int cl_index, size_t asize) {
+    // Get the first block that fits
+    // SL is ordered by size, from small to large.
+    void *ptr = sl[cl_index];
+
+    while (ptr) {
+        if (GET_SIZE(ptr) >= asize) {
+            return ptr;
+        } else {
+            ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
+        }
+    }
+    return NULL;
+}
+
+
+void sl_insert(void *bp, int cl_index) {
+    // Assume that cl_index is the correct one for bp size.
+    // Place in ascending order of size
+    assert(cl_index < SL_CLASSES);
+    if (!bp) return;
+
+    void *ptr = sl[cl_index];
+    void *prev = NULL;
+
+    if (!ptr) {
+        // First in the list.
+        PUT(SL_NEXT_FREE_BLKP(bp), 0);
+        PUT(SL_PREV_FREE_BLKP(bp), 0);
+        sl[cl_index] = bp;
+        return;
+    }
+
+    while (ptr) {
+        if (GET_SIZE(bp) >= GET_SIZE(ptr)) {
+            prev = ptr;
+            ptr = (void *) GET(SL_NEXT_FREE_BLKP(bp));
+        } else {
+            break;
+        }
+    }
+
+    if (ptr == sl[cl_index]) {
+        // Replacing first in the list
+        PUT(SL_NEXT_FREE_BLKP(bp), (uintptr_t) ptr);
+        PUT(SL_PREV_FREE_BLKP(bp), 0);
+        PUT(SL_PREV_FREE_BLKP(ptr), (uintptr_t) bp);
+        sl[cl_index] = bp;
+
+    } else if (!ptr) {
+        // Last in the list
+        PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
+        PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
+        PUT(SL_NEXT_FREE_BLKP(bp), 0);
+    } else {
+        // In the middle of list, in front of ptr
+        PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
+        PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
+        PUT(SL_NEXT_FREE_BLKP(bp), (uintptr_t) ptr);
+        PUT(SL_PREV_FREE_BLKP(ptr), (uintptr_t) bp);
+    }
+}
+
+void *sl_extend_heap(size_t size) {
+    assert(size % DSIZE == 0);
+
+    void *bp;
+
+    if ( (bp = mem_sbrk(size)) == (void *)-1 ) {
+        return NULL;
+    }
+
+    // Initialize free block header, footer, and epilogue
+    PUT(HDRP(bp), PACK(size, 0));   // free block header
+
+    PUT(SL_NEXT_FREE_BLKP(bp), 0);  // NEXT ptr
+    PUT(SL_PREV_FREE_BLKP(bp), 0);  // PREV ptr
+
+    PUT(FTRP(bp), PACK(size, 0));   // free block footer
+    PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1));        // new epilogue header
+
+    // Coalesce if the previous block was free
+    return coalesce(bp);
+}
+
+int sl_get_cl_index_by_size(size_t asize) {
+    assert(asize % DSIZE == 0);
+    assert(asize > SL_MIN_BLK_SIZE);
+
+    asize = asize >> 6;
+    int index = 0;
+
+    while (asize > 0) {
+        if (index >= SL_CLASSES-1) return index; // at largest class
+        index++;
+        asize = asize >> 1;
+    }
+    return index;
+}
+
