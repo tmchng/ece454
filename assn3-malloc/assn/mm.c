@@ -64,16 +64,6 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
-//#define DEBUG 1
-
-#ifdef DEBUG
-    #define DBG_ASSERT(arg) assert(arg)
-    #define DBG_PRINT(...) printf(__VA_ARGS__)
-#else
-    #define DBG_ASSERT(arg)
-    #define DBG_PRINT(...)
-#endif
-
 /**
  * LAB3
  * Variables for segregated list
@@ -99,6 +89,7 @@ void sl_print();
 void sl_insert_head(void *bp);
 void sl_insert_ordered(void *bp);
 size_t sl_get_asize(size_t size);
+void *sl_split_optimize(void *bp, size_t asize);
 
 
 void* heap_listp = NULL;
@@ -151,7 +142,6 @@ void *coalesce(void *bp)
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
 
-    DBG_PRINT("coalesce 2 newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
         return (bp);
     }
 
@@ -161,7 +151,6 @@ void *coalesce(void *bp)
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(prev), PACK(size, 0));
-    DBG_PRINT("coalesce 3 newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
         return (prev);
     }
 
@@ -172,7 +161,6 @@ void *coalesce(void *bp)
         size += GET_SIZE(HDRP(prev)) + GET_SIZE(HDRP(next))  ;
         PUT(HDRP(prev), PACK(size,0));
         PUT(FTRP(next), PACK(size,0));
-    DBG_PRINT("coalesce 4 newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
         return (prev);
     }
 }
@@ -193,8 +181,6 @@ void *extend_heap(size_t words)
     if ( (bp = mem_sbrk(size)) == (void *)-1 )
         return NULL;
 
-    DBG_PRINT("extend heap size = %u\n", (unsigned int)size);
-    DBG_ASSERT(size > 0);
     /* Initialize free block header/footer and the epilogue header */
     PUT(HDRP(bp), PACK(size, 0));                // free block header
     PUT(FTRP(bp), PACK(size, 0));                // free block footer
@@ -244,7 +230,6 @@ void mm_free(void *bp)
 
 
     size_t size = GET_SIZE(HDRP(bp));
-    DBG_PRINT("- free %lx size=%u\n", (uintptr_t) bp, (unsigned int)size);
     PUT(HDRP(bp), PACK(size,0));
     PUT(FTRP(bp), PACK(size,0));
     sl_insert(coalesce(bp));
@@ -273,12 +258,10 @@ void *mm_malloc(size_t size)
     /* Adjust block size to include overhead and alignment reqs. */
     asize = sl_get_asize(size);
 
-    DBG_PRINT("- malloc start asize=%u, size=%u\n", (unsigned int)asize, (unsigned int)size);
 
     /* Search the free list for a fit */
     if ((bp = sl_find_fit(asize)) != NULL) {
         sl_place(bp);
-        DBG_PRINT("malloc success bsize=%u at %lx\n", (unsigned int)asize, (uintptr_t)bp);
         return bp;
     }
 
@@ -288,9 +271,8 @@ void *mm_malloc(size_t size)
         return NULL;
 
     // Try to split and only get what we need.
-    sl_crop_unused(bp, asize);
+    bp = sl_split_optimize(bp, asize);
     sl_place(bp);
-    DBG_PRINT("malloc success bsize=%u\n at %lx\n", (unsigned int)asize, (uintptr_t)bp);
     return bp;
 
 }
@@ -311,7 +293,6 @@ void *mm_realloc(void *ptr, size_t size)
       return (mm_malloc(size));
 
 
-    DBG_PRINT("- Realloc size=%u at %lx\n", (unsigned int)size, (uintptr_t)ptr);
     void *oldptr = ptr;
     void *newptr;
     void *cptr; // coalesce
@@ -335,12 +316,10 @@ void *mm_realloc(void *ptr, size_t size)
 
     if (GET_SIZE(HDRP(cptr)) >= asize) {
         // New coalesced block is big enough. Use it.
-        DBG_ASSERT(GET_ALLOC(HDRP(cptr)) == 0);
         newptr = cptr;
     } else {
         // Have to get a block via malloc
         // Put the coalesced/free block into SL.
-        DBG_PRINT("coalesce didn't give us a fit\n");
         newptr = mm_malloc(size);
     }
 
@@ -381,6 +360,10 @@ int mm_check(void){
 
 
 /** Segregated list helper functions **/
+
+/**
+ * Initialize the Segregated list
+ */
 void sl_init() {
     int i;
     for (i = 0; i < SL_CLASSES; i++) {
@@ -416,12 +399,10 @@ void *sl_find_fit(size_t asize) {
     }
 
     if (ptr) {
-        DBG_PRINT("cl=%d, size=%lu, alloc=%lu at %lx\n", i,  GET_SIZE(HDRP(ptr)), GET_ALLOC(HDRP(ptr)), (uintptr_t)ptr);
-        DBG_ASSERT(GET_ALLOC(HDRP(ptr)) == 0);
         // Remove block from SL
         sl_remove(ptr);
         // Try to split
-        sl_crop_unused(ptr, asize);
+        ptr = sl_split_optimize(ptr, asize);
     }
 
     return ptr;
@@ -432,16 +413,13 @@ void sl_crop_unused(void *bp, size_t asize) {
     // Returns the block that fits asize
     // Inserts the free block to sl
     if (!bp) return;
-    DBG_ASSERT(GET_ALLOC(HDRP(bp)) == 0);
 
     size_t bsize = GET_SIZE(HDRP(bp));
     size_t free_size = bsize - asize;
     char alloc = GET_ALLOC(HDRP(bp));
-    DBG_ASSERT(free_size >= 0);
 
     if (free_size < SL_MIN_BLK_SIZE) {
         // Cannot break up the block.
-        DBG_PRINT("no crop\n");
         return;
     }
 
@@ -460,31 +438,67 @@ void sl_crop_unused(void *bp, size_t asize) {
     PUT(FTRP(bp), PACK(asize, alloc));
 }
 
+void *sl_split_optimize(void *bp, size_t asize) {
+    if (!bp) return NULL;
+
+    size_t bsize = GET_SIZE(HDRP(bp));
+    size_t free_size = bsize - asize;
+    char alloc = GET_ALLOC(HDRP(bp));
+
+    if (free_size < SL_MIN_BLK_SIZE) {
+        // Cannot break up the block.
+        return bp;
+    }
+
+    // Allocate towards the same sized blocks
+    void *prev = PREV_BLKP(bp);
+    void *next = NEXT_BLKP(bp);
+    void *free_bp;
+    int size_diff_prev = abs(asize - GET_SIZE(HDRP(prev)));
+    int size_diff_next = abs(asize - GET_SIZE(HDRP(next)));
+
+    if (size_diff_prev < size_diff_next) {
+        // Place block towards previous block
+        free_bp = (void *)(bp + asize);
+
+    } else {
+        // Place block towards next block
+        free_bp = bp;
+        bp = (void *)(bp + free_size);
+    }
+
+    // Write header and footer of free block
+    PUT(HDRP(free_bp), PACK(free_size, 0));
+    PUT(FTRP(free_bp), PACK(free_size, 0));
+    // Insert free block back to SL
+    sl_insert(free_bp);
+
+    // Update the header and footer for bp
+    PUT(HDRP(bp), PACK(asize, alloc));
+    PUT(FTRP(bp), PACK(asize, alloc));
+
+    return bp;
+}
+
 void sl_remove(void *bp) {
     // Remove a block from SL
     if (!bp) return;
     void *prev = (void*) GET(SL_PREV_FREE_BLKP(bp));
     void *next = (void*) GET(SL_NEXT_FREE_BLKP(bp));
-    DBG_ASSERT(GET_ALLOC(HDRP(bp)) == 0);
 
-    DBG_PRINT("remove %lx - prev=%lx, next=%lx", (uintptr_t)bp, (uintptr_t)prev, (uintptr_t) next);
 
     if (!prev) {
-        DBG_PRINT("at head\n");
         // First block in the list
         int cl_index = sl_get_cl_index_by_size(GET_SIZE(HDRP(bp)));
-        DBG_ASSERT(sl[cl_index] == bp);
         if (next) {
             PUT(SL_PREV_FREE_BLKP(next), (uintptr_t) prev);
         }
         sl[cl_index] = next;
 
     } else if (!next) {
-        DBG_PRINT("at end\n");
         // Last block in the list
         PUT(SL_NEXT_FREE_BLKP(prev), 0);
     } else {
-        DBG_PRINT("in middle\n");
         // Middle block
         // Link next and prev
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) next);
@@ -498,7 +512,6 @@ void sl_insert(void *bp) {
 
 void sl_insert_head(void *bp) {
     if (!bp) return;
-    DBG_ASSERT(GET_ALLOC(HDRP(bp)) == 0);
 
     // Always insert at the head of list
     int cl_index = sl_get_cl_index_by_size(GET_SIZE(HDRP(bp)));
@@ -516,16 +529,13 @@ void sl_insert_head(void *bp) {
 void sl_insert_ordered(void *bp) {
     // Place in descending order of size
     if (!bp) return;
-    DBG_ASSERT(GET_ALLOC(HDRP(bp)) == 0);
 
     size_t bsize = GET_SIZE(HDRP(bp));
-    DBG_PRINT("sl_insert size=%u at %lx -- ", (unsigned int)bsize, (uintptr_t)bp);
     int cl_index = sl_get_cl_index_by_size(bsize);
     void *ptr = sl[cl_index];
     void *prev = NULL;
 
     if (!ptr) {
-        DBG_PRINT("first one\n");
         // First in the list.
         PUT(SL_NEXT_FREE_BLKP(bp), 0);
         PUT(SL_PREV_FREE_BLKP(bp), 0);
@@ -537,14 +547,12 @@ void sl_insert_ordered(void *bp) {
         if (GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(ptr))) {
             prev = ptr;
             ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
-            DBG_PRINT("ptr=%lx\n", (uintptr_t)ptr);
         } else {
             break;
         }
     }
 
     if (ptr == sl[cl_index]) {
-        DBG_PRINT("at head\n");
         // Replacing first in the list
         PUT(SL_NEXT_FREE_BLKP(bp), (uintptr_t) ptr);
         PUT(SL_PREV_FREE_BLKP(bp), 0);
@@ -552,13 +560,11 @@ void sl_insert_ordered(void *bp) {
         sl[cl_index] = bp;
 
     } else if (!ptr) {
-        DBG_PRINT("at last %lx\n", (uintptr_t)ptr);
         // Last in the list
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
         PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
         PUT(SL_NEXT_FREE_BLKP(bp), 0);
     } else {
-        DBG_PRINT("in middle %lx\n", (uintptr_t)ptr);
         // In the middle of list, in front of ptr
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
         PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
@@ -568,9 +574,6 @@ void sl_insert_ordered(void *bp) {
 }
 
 int sl_get_cl_index_by_size(size_t asize) {
-    DBG_ASSERT(asize % DSIZE == 0);
-    DBG_ASSERT(asize >= SL_MIN_BLK_SIZE);
-
     asize = asize >> 6;
     int index = 0;
 
@@ -587,20 +590,4 @@ void sl_place(void *bp) {
 
   PUT(HDRP(bp), PACK(bsize, 1));
   PUT(FTRP(bp), PACK(bsize, 1));
-}
-
-void sl_print() {
-    DBG_PRINT("\n *** current SL ***\n");
-    int i;
-    void *ptr = NULL;
-    for (i = 0; i < SL_CLASSES; i++) {
-        DBG_PRINT("-- class %d\n", i);
-        ptr = sl[i];
-        while (ptr) {
-            DBG_PRINT("%lx\n", (uintptr_t)ptr);
-            ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
-        }
-        DBG_PRINT("-- class %d\n", i);
-    }
-    DBG_PRINT("\n");
 }
