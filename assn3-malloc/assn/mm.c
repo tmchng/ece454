@@ -70,7 +70,7 @@ team_t team = {
  */
 #define SL_CLASSES          32
 // Overhead: header, ptr, ptr, footer
-#define SL_OVERHEAD         WSIZE * 4
+#define SL_OVERHEAD         DSIZE
 #define SL_MIN_BLK_SIZE     2 * DSIZE
 #define SL_NEXT_FREE_BLKP(p) ((char *)(p))
 #define SL_PREV_FREE_BLKP(p) ((char *)(p) + WSIZE)
@@ -84,6 +84,8 @@ void sl_insert(void *bp);
 void *sl_split(void *bp, size_t asize);
 void sl_remove(void *bp);
 void sl_place(void *bp);
+void sl_init();
+void sl_print();
 
 
 void* heap_listp = NULL;
@@ -103,6 +105,8 @@ void* heap_listp = NULL;
      PUT(heap_listp + (3 * WSIZE), PACK(0, 1));    // epilogue header
      heap_listp += DSIZE;
 
+     sl_init();
+
      return 0;
  }
 
@@ -116,34 +120,47 @@ void* heap_listp = NULL;
  **********************************************************/
 void *coalesce(void *bp)
 {
-    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
-    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+    void *prev = (void *) PREV_BLKP(bp);
+    void *next = (void *) NEXT_BLKP(bp);
+
+    size_t prev_alloc = GET_ALLOC(FTRP(prev));
+    size_t next_alloc = GET_ALLOC(HDRP(next));
     size_t size = GET_SIZE(HDRP(bp));
 
     if (prev_alloc && next_alloc) {       /* Case 1 */
-        return bp;
+        return (bp);
     }
 
     else if (prev_alloc && !next_alloc) { /* Case 2 */
+        sl_remove(next);
+
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
+
+    //printf("coalesce newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
         return (bp);
     }
 
     else if (!prev_alloc && next_alloc) { /* Case 3 */
+        sl_remove(prev);
+
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        return (PREV_BLKP(bp));
+        PUT(HDRP(prev), PACK(size, 0));
+    //printf("coalesce newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
+        return (prev);
     }
 
     else {            /* Case 4 */
-        size += GET_SIZE(HDRP(PREV_BLKP(bp)))  +
-            GET_SIZE(FTRP(NEXT_BLKP(bp)))  ;
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size,0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(size,0));
-        return (PREV_BLKP(bp));
+        sl_remove(prev);
+        sl_remove(next);
+
+        size += GET_SIZE(HDRP(prev)) + GET_SIZE(HDRP(next))  ;
+        PUT(HDRP(prev), PACK(size,0));
+        PUT(FTRP(next), PACK(size,0));
+    //printf("coalesce newsize=%u at %lx\n", (unsigned int)size, (uintptr_t)bp);
+        return (prev);
     }
 }
 
@@ -163,6 +180,8 @@ void *extend_heap(size_t words)
     if ( (bp = mem_sbrk(size)) == (void *)-1 )
         return NULL;
 
+    //printf("extend heap size = %u\n", (unsigned int)size);
+    assert(size > 0);
     /* Initialize free block header/footer and the epilogue header */
     PUT(HDRP(bp), PACK(size, 0));                // free block header
     PUT(FTRP(bp), PACK(size, 0));                // free block footer
@@ -210,14 +229,12 @@ void mm_free(void *bp)
       return;
     }
 
+
     size_t size = GET_SIZE(HDRP(bp));
+    //printf("- free %lx size=%u\n", (uintptr_t) bp, (unsigned int)size);
     PUT(HDRP(bp), PACK(size,0));
     PUT(FTRP(bp), PACK(size,0));
-    coalesce(bp);
-
-    // Insert back to SL
-    sl_insert(bp);
-
+    sl_insert(coalesce(bp));
 }
 
 
@@ -239,6 +256,7 @@ void *mm_malloc(size_t size)
     if (size <= 0)
         return NULL;
 
+
     /* Adjust block size to include overhead and alignment reqs. */
     asize = size + SL_OVERHEAD;
     if (asize <= DSIZE)
@@ -246,9 +264,12 @@ void *mm_malloc(size_t size)
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE-1))/ DSIZE);
 
+    //printf("- malloc start asize=%u, size=%u\n", (unsigned int)asize, (unsigned int)size);
+
     /* Search the free list for a fit */
     if ((bp = sl_find_fit(asize)) != NULL) {
         sl_place(bp);
+        //printf("malloc success bsize=%u at %lx\n", (unsigned int)asize, (uintptr_t)bp);
         return bp;
     }
 
@@ -260,6 +281,7 @@ void *mm_malloc(size_t size)
     // Try to split and only get what we need.
     bp = sl_split(bp, asize);
     sl_place(bp);
+    //printf("malloc success bsize=%u\n at %lx\n", (unsigned int)asize, (uintptr_t)bp);
     return bp;
 
 }
@@ -307,6 +329,13 @@ int mm_check(void){
 
 
 /** Segregated list helper functions **/
+void sl_init() {
+    int i;
+    for (i = 0; i < SL_CLASSES; i++) {
+        sl[i] = NULL;
+    }
+}
+
 void *sl_find_fit(size_t asize) {
     void *ptr = NULL;
     int i;
@@ -317,11 +346,11 @@ void *sl_find_fit(size_t asize) {
     // Go through every class including and above
     // the best bitting class.
     for (i = cl_index; i < SL_CLASSES; i++) {
-        ptr = sl[cl_index];
+        ptr = sl[i];
 
         while (ptr) {
             // SL is ordered by size, from small to large.
-            if (GET_SIZE(ptr) >= asize) {
+            if (GET_SIZE(HDRP(ptr)) >= asize) {
                 found = 1;
                 break;
             } else {
@@ -334,7 +363,11 @@ void *sl_find_fit(size_t asize) {
 
     if (ptr) {
         assert(found);
-        assert(GET_ALLOC(ptr) == 0);
+        //printf("cl=%d, size=%lu, alloc=%lu at %lx\n", i,  GET_SIZE(HDRP(ptr)), GET_ALLOC(HDRP(ptr)), (uintptr_t)ptr);
+        if (GET_ALLOC(HDRP(ptr)) != 0) {
+            sl_print();
+        }
+        assert(GET_ALLOC(HDRP(ptr)) == 0);
         // Remove block from SL
         sl_remove(ptr);
         // Try to split
@@ -349,14 +382,15 @@ void *sl_split(void *bp, size_t asize) {
     // Returns the block that fits asize
     // Inserts the free block to sl
     if (!bp) return NULL;
-    assert(GET_ALLOC(bp) == 0);
+    assert(GET_ALLOC(HDRP(bp)) == 0);
 
-    int bsize = GET_SIZE(bp);
-    int free_size = bsize - asize;
+    size_t bsize = GET_SIZE(HDRP(bp));
+    size_t free_size = bsize - asize;
     assert(free_size >= 0);
 
-    if (free_size < 2 * DSIZE) {
+    if (free_size < SL_MIN_BLK_SIZE) {
         // Cannot break up the block.
+        //printf("no split\n");
         return bp;
     }
 
@@ -380,20 +414,28 @@ void *sl_split(void *bp, size_t asize) {
 void sl_remove(void *bp) {
     // Remove a block from SL
     if (!bp) return;
-    void *prev = SL_PREV_FREE_BLKP(bp);
-    void *next = SL_NEXT_FREE_BLKP(bp);
-    assert(GET_ALLOC(bp) == 0);
-    assert(prev || next);
+    void *prev = (void*) GET(SL_PREV_FREE_BLKP(bp));
+    void *next = (void*) GET(SL_NEXT_FREE_BLKP(bp));
+    assert(GET_ALLOC(HDRP(bp)) == 0);
+
+    //printf("remove %lx - prev=%lx, next=%lx", (uintptr_t)bp, (uintptr_t)prev, (uintptr_t) next);
 
     if (!prev) {
+        //printf("at head\n");
         // First block in the list
-        int cl_index = sl_get_cl_index_by_size(GET_SIZE(bp));
+        int cl_index = sl_get_cl_index_by_size(GET_SIZE(HDRP(bp)));
+        assert(sl[cl_index] == bp);
+        if (next) {
+            PUT(SL_PREV_FREE_BLKP(next), (uintptr_t) prev);
+        }
         sl[cl_index] = next;
 
     } else if (!next) {
+        //printf("at end\n");
         // Last block in the list
         PUT(SL_NEXT_FREE_BLKP(prev), 0);
     } else {
+        //printf("in middle\n");
         // Middle block
         // Link next and prev
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) next);
@@ -404,14 +446,16 @@ void sl_remove(void *bp) {
 void sl_insert(void *bp) {
     // Place in ascending order of size
     if (!bp) return;
-    assert(GET_ALLOC(bp) == 0);
+    assert(GET_ALLOC(HDRP(bp)) == 0);
 
-    size_t bsize = GET_SIZE(bp);
+    size_t bsize = GET_SIZE(HDRP(bp));
+    //printf("sl_insert size=%u at %lx -- ", (unsigned int)bsize, (uintptr_t)bp);
     int cl_index = sl_get_cl_index_by_size(bsize);
     void *ptr = sl[cl_index];
     void *prev = NULL;
 
     if (!ptr) {
+        //printf("first one\n");
         // First in the list.
         PUT(SL_NEXT_FREE_BLKP(bp), 0);
         PUT(SL_PREV_FREE_BLKP(bp), 0);
@@ -420,15 +464,17 @@ void sl_insert(void *bp) {
     }
 
     while (ptr) {
-        if (GET_SIZE(bp) >= GET_SIZE(ptr)) {
+        if (GET_SIZE(HDRP(bp)) >= GET_SIZE(HDRP(ptr))) {
             prev = ptr;
-            ptr = (void *) GET(SL_NEXT_FREE_BLKP(bp));
+            ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
+            //printf("ptr=%lx\n", (uintptr_t)ptr);
         } else {
             break;
         }
     }
 
     if (ptr == sl[cl_index]) {
+        //printf("at head\n");
         // Replacing first in the list
         PUT(SL_NEXT_FREE_BLKP(bp), (uintptr_t) ptr);
         PUT(SL_PREV_FREE_BLKP(bp), 0);
@@ -436,11 +482,13 @@ void sl_insert(void *bp) {
         sl[cl_index] = bp;
 
     } else if (!ptr) {
+        //printf("at last %lx\n", (uintptr_t)ptr);
         // Last in the list
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
         PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
         PUT(SL_NEXT_FREE_BLKP(bp), 0);
     } else {
+        //printf("in middle %lx\n", (uintptr_t)ptr);
         // In the middle of list, in front of ptr
         PUT(SL_NEXT_FREE_BLKP(prev), (uintptr_t) bp);
         PUT(SL_PREV_FREE_BLKP(bp), (uintptr_t) prev);
@@ -451,7 +499,7 @@ void sl_insert(void *bp) {
 
 int sl_get_cl_index_by_size(size_t asize) {
     assert(asize % DSIZE == 0);
-    assert(asize > SL_MIN_BLK_SIZE);
+    assert(asize >= SL_MIN_BLK_SIZE);
 
     asize = asize >> 6;
     int index = 0;
@@ -469,4 +517,20 @@ void sl_place(void *bp) {
 
   PUT(HDRP(bp), PACK(bsize, 1));
   PUT(FTRP(bp), PACK(bsize, 1));
+}
+
+void sl_print() {
+    printf("\n *** current SL ***\n");
+    int i;
+    void *ptr = NULL;
+    for (i = 0; i < SL_CLASSES; i++) {
+        printf("-- class %d\n", i);
+        ptr = sl[i];
+        while (ptr) {
+            printf("%lx\n", (uintptr_t)ptr);
+            ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
+        }
+        printf("-- class %d\n", i);
+    }
+    printf("\n");
 }
