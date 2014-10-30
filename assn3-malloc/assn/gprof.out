@@ -1,0 +1,247 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  us/call  us/call  name    
+ 41.36      1.62     1.62  1308276     1.24     1.24  sl_insert
+ 25.28      2.61     0.99   731820     1.35     2.04  sl_find_fit
+ 24.26      3.56     0.95                             main
+  4.60      3.74     0.18                             add_range
+  2.81      3.85     0.11                             remove_range
+  0.26      3.86     0.01  3008172     0.00     0.00  sl_get_cl_index_by_size
+  0.26      3.87     0.01   956208     0.01     0.01  coalesce
+  0.26      3.88     0.01                             eval_mm_speed
+  0.00      3.88     0.00  1308144     0.00     0.00  sl_remove
+  0.00      3.88     0.00   731820     0.00     1.26  mm_free
+  0.00      3.88     0.00   731820     0.00     2.34  mm_malloc
+  0.00      3.88     0.00   731820     0.00     0.00  sl_place
+  0.00      3.88     0.00   731820     0.00     0.98  sl_split
+  0.00      3.88     0.00   224388     0.00     0.01  extend_heap
+  0.00      3.88     0.00   115176     0.00     3.60  mm_realloc
+  0.00      3.88     0.00      132     0.00     0.00  mm_init
+  0.00      3.88     0.00      132     0.00     0.00  sl_init
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+ 
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this 
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 2 byte(s) for 0.26% of 3.88 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]     56.7    0.01    2.19                 eval_mm_speed [1]
+                0.00    1.20  513870/731820      mm_malloc [2]
+                0.00    0.64  513870/731820      mm_free [6]
+                0.00    0.35   95980/115176      mm_realloc [8]
+                0.00    0.00     110/132         mm_init [16]
+-----------------------------------------------
+                0.00    0.24  102774/731820      main [5]
+                0.00    0.27  115176/731820      mm_realloc [8]
+                0.00    1.20  513870/731820      eval_mm_speed [1]
+[2]     44.1    0.00    1.71  731820         mm_malloc [2]
+                0.99    0.50  731820/731820      sl_find_fit [4]
+                0.00    0.22  224388/731820      sl_split [7]
+                0.00    0.00  224388/224388      extend_heap [14]
+                0.00    0.00  731820/731820      sl_place [15]
+-----------------------------------------------
+                0.71    0.00  576456/1308276     sl_split [7]
+                0.91    0.00  731820/1308276     mm_free [6]
+[3]     41.9    1.62    0.00 1308276         sl_insert [3]
+                0.00    0.00 1308276/3008172     sl_get_cl_index_by_size [12]
+-----------------------------------------------
+                0.99    0.50  731820/731820      mm_malloc [2]
+[4]     38.4    0.99    0.50  731820         sl_find_fit [4]
+                0.00    0.50  507432/731820      sl_split [7]
+                0.00    0.00  731820/3008172     sl_get_cl_index_by_size [12]
+                0.00    0.00  507432/1308144     sl_remove [13]
+-----------------------------------------------
+                                                 <spontaneous>
+[5]     35.8    0.95    0.44                 main [5]
+                0.00    0.24  102774/731820      mm_malloc [2]
+                0.00    0.13  102774/731820      mm_free [6]
+                0.00    0.07   19196/115176      mm_realloc [8]
+                0.00    0.00      22/132         mm_init [16]
+-----------------------------------------------
+                0.00    0.13  102774/731820      main [5]
+                0.00    0.14  115176/731820      mm_realloc [8]
+                0.00    0.64  513870/731820      eval_mm_speed [1]
+[6]     23.7    0.00    0.92  731820         mm_free [6]
+                0.91    0.00  731820/1308276     sl_insert [3]
+                0.01    0.00  731820/956208      coalesce [11]
+-----------------------------------------------
+                0.00    0.22  224388/731820      mm_malloc [2]
+                0.00    0.50  507432/731820      sl_find_fit [4]
+[7]     18.4    0.00    0.72  731820         sl_split [7]
+                0.71    0.00  576456/1308276     sl_insert [3]
+-----------------------------------------------
+                0.00    0.07   19196/115176      main [5]
+                0.00    0.35   95980/115176      eval_mm_speed [1]
+[8]     10.7    0.00    0.41  115176         mm_realloc [8]
+                0.00    0.27  115176/731820      mm_malloc [2]
+                0.00    0.14  115176/731820      mm_free [6]
+-----------------------------------------------
+                                                 <spontaneous>
+[9]      4.6    0.18    0.00                 add_range [9]
+-----------------------------------------------
+                                                 <spontaneous>
+[10]     2.8    0.11    0.00                 remove_range [10]
+-----------------------------------------------
+                0.00    0.00  224388/956208      extend_heap [14]
+                0.01    0.00  731820/956208      mm_free [6]
+[11]     0.3    0.01    0.00  956208         coalesce [11]
+                0.00    0.00  800712/1308144     sl_remove [13]
+-----------------------------------------------
+                0.00    0.00  731820/3008172     sl_find_fit [4]
+                0.00    0.00  968076/3008172     sl_remove [13]
+                0.00    0.00 1308276/3008172     sl_insert [3]
+[12]     0.3    0.01    0.00 3008172         sl_get_cl_index_by_size [12]
+-----------------------------------------------
+                0.00    0.00  507432/1308144     sl_find_fit [4]
+                0.00    0.00  800712/1308144     coalesce [11]
+[13]     0.1    0.00    0.00 1308144         sl_remove [13]
+                0.00    0.00  968076/3008172     sl_get_cl_index_by_size [12]
+-----------------------------------------------
+                0.00    0.00  224388/224388      mm_malloc [2]
+[14]     0.1    0.00    0.00  224388         extend_heap [14]
+                0.00    0.00  224388/956208      coalesce [11]
+-----------------------------------------------
+                0.00    0.00  731820/731820      mm_malloc [2]
+[15]     0.0    0.00    0.00  731820         sl_place [15]
+-----------------------------------------------
+                0.00    0.00      22/132         main [5]
+                0.00    0.00     110/132         eval_mm_speed [1]
+[16]     0.0    0.00    0.00     132         mm_init [16]
+                0.00    0.00     132/132         sl_init [17]
+-----------------------------------------------
+                0.00    0.00     132/132         mm_init [16]
+[17]     0.0    0.00    0.00     132         sl_init [17]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+   [9] add_range (mdriver.c)  [16] mm_init                [17] sl_init
+  [11] coalesce                [2] mm_malloc               [3] sl_insert
+   [1] eval_mm_speed (mdriver.c) [8] mm_realloc           [15] sl_place
+  [14] extend_heap            [10] remove_range (mdriver.c) [13] sl_remove
+   [5] main                    [4] sl_find_fit             [7] sl_split
+   [6] mm_free                [12] sl_get_cl_index_by_size
