@@ -64,17 +64,21 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
+
 /**
  * LAB3
- * Variables for segregated list
+ * Segregated List
+ *
+ * The segrelated list has 32 classes, going from the 32 byte
+ * class and up for every power of 2. It uses 8 * 32 = 256 bytes of memory.
  */
+
 #define SL_CLASSES          32
-// Overhead: header, ptr, ptr, footer
-#define SL_OVERHEAD         DSIZE
-#define SL_MIN_BLK_SIZE     2 * DSIZE
+#define SL_OVERHEAD         DSIZE // header + footer
+#define SL_MIN_BLK_SIZE     2 * DSIZE // header + footer + 2 ptrs
 #define SL_NEXT_FREE_BLKP(p) ((char *)(p))
 #define SL_PREV_FREE_BLKP(p) ((char *)(p) + WSIZE)
-// Indexed by powers of 2
+
 void *sl[SL_CLASSES];
 
 // Segregated list function declarations
@@ -85,7 +89,6 @@ void sl_crop_unused(void *bp, size_t asize);
 void sl_remove(void *bp);
 void sl_place(void *bp);
 void sl_init();
-void sl_print();
 void sl_insert_head(void *bp);
 void sl_insert_ordered(void *bp);
 size_t sl_get_asize(size_t size);
@@ -121,6 +124,8 @@ void* heap_listp = NULL;
  * - the next block is available for coalescing
  * - the previous block is available for coalescing
  * - both neighbours are available for coalescing
+ *
+ * Coalesced block is removed from the segregated list.
  **********************************************************/
 void *coalesce(void *bp)
 {
@@ -199,6 +204,7 @@ void *extend_heap(size_t words)
  **********************************************************/
 void * find_fit(size_t asize)
 {
+    // Unused
     void *bp;
     bp = sl_find_fit(asize);
 
@@ -211,11 +217,12 @@ void * find_fit(size_t asize)
  **********************************************************/
 void place(void* bp, size_t asize)
 {
-  /* Get the current block size */
-  size_t bsize = GET_SIZE(HDRP(bp));
+    // Unused
+    /* Get the current block size */
+    size_t bsize = GET_SIZE(HDRP(bp));
 
-  PUT(HDRP(bp), PACK(bsize, 1));
-  PUT(FTRP(bp), PACK(bsize, 1));
+    PUT(HDRP(bp), PACK(bsize, 1));
+    PUT(FTRP(bp), PACK(bsize, 1));
 }
 
 /**********************************************************
@@ -238,11 +245,8 @@ void mm_free(void *bp)
 
 /**********************************************************
  * mm_malloc
- * Allocate a block of size bytes.
- * The type of search is determined by find_fit
- * The decision of splitting the block, or not is determined
- *   in place(..)
- * If no block satisfies the request, the heap is extended
+ * Allocate a block that can fit size bytes.
+ * Extend the heap if there's no available free block.
  **********************************************************/
 void *mm_malloc(size_t size)
 {
@@ -279,7 +283,12 @@ void *mm_malloc(size_t size)
 
 /**********************************************************
  * mm_realloc
- * Implemented simply in terms of mm_malloc and mm_free
+ *
+ * Reallocate space given pointer to an existing block.
+ *
+ * Optimized for performance and use of space by avoiding
+ * going through the segregated list and allocating new memory
+ * block whenever possible.
  *********************************************************/
 void *mm_realloc(void *ptr, size_t size)
 {
@@ -355,7 +364,27 @@ void *mm_realloc(void *ptr, size_t size)
  * Return nonzero if the heap is consistant.
  *********************************************************/
 int mm_check(void){
-  return 1;
+    unsigned int free_blk_count = 0;
+    unsigned int alloc_blk_count = 0;
+
+    size_t free_size = 0;
+    size_t alloc_size = 0;
+    void *ptr;
+
+    int odd_free_blk = 0;
+
+    // Do a sweep and collect stats on the current heap.
+
+
+    // Check that all blocks in the free list are not allocated
+    // Check that the number of free blocks counted from sweep
+    // equals the number of blocks in the segregated list
+
+
+    // Check that all blocks are either free or allocated
+    // by adding the size of used blocks and the size of free blocks.
+
+    // Check that all free blocks on heap can be reached from segregated list
 }
 
 
@@ -371,6 +400,12 @@ void sl_init() {
     }
 }
 
+/**
+ * Computes the aligned size, including overhead.
+ *
+ * size: the requested block size.
+ * return: aligned size
+ */
 size_t sl_get_asize(size_t size) {
     // Get the appropriate adjusted size
     size_t asize = size + SL_OVERHEAD;
@@ -381,6 +416,13 @@ size_t sl_get_asize(size_t size) {
     return asize;
 }
 
+/**
+ * Finds a fitting free block from the segregated list.
+ * Splits the block if possible to conserve memory.
+ *
+ * asize: aligned size
+ * return: pointer to free block or NULL
+ */
 void *sl_find_fit(size_t asize) {
     void *ptr = NULL;
     int i;
@@ -408,7 +450,13 @@ void *sl_find_fit(size_t asize) {
     return ptr;
 }
 
-
+/**
+ * Frees unused chunk of a given block if possible.
+ * Free block is reinserted into the segregated list.
+ *
+ * bp: pointer to a free block
+ * asize: aligned size
+ */
 void sl_crop_unused(void *bp, size_t asize) {
     // Returns the block that fits asize
     // Inserts the free block to sl
@@ -438,6 +486,16 @@ void sl_crop_unused(void *bp, size_t asize) {
     PUT(FTRP(bp), PACK(asize, alloc));
 }
 
+/**
+ * Frees unused chunk of a block if possible, and allocate the used
+ * chunk towards the adjacent block with similar size.
+ * By grouping similar sized block together, we can reduce external
+ * fragmentation.
+ *
+ * bp: pointer to a block
+ * asize; aligned size
+ * return: pointer to the asize portion of the block.
+ */
 void *sl_split_optimize(void *bp, size_t asize) {
     if (!bp) return NULL;
 
@@ -480,6 +538,11 @@ void *sl_split_optimize(void *bp, size_t asize) {
     return bp;
 }
 
+/**
+ * Removes a block from the segregated list.
+ *
+ * bp: block ptr
+ */
 void sl_remove(void *bp) {
     // Remove a block from SL
     if (!bp) return;
@@ -506,10 +569,22 @@ void sl_remove(void *bp) {
     }
 }
 
+/**
+ * Inserts a block into the segregated list.
+ * The block is placed in appropriate class based on its size.
+ *
+ * bp: block ptr
+ */
 void sl_insert(void *bp) {
     sl_insert_ordered(bp);
 }
 
+/**
+ * Inserts a block into the segregated list.
+ * This version always place the block at the head of its class.
+ *
+ * bp: block ptr
+ */
 void sl_insert_head(void *bp) {
     if (!bp) return;
 
@@ -526,6 +601,12 @@ void sl_insert_head(void *bp) {
     sl[cl_index] = bp;
 }
 
+/**
+ * Inserts a block into the segregated list.
+ * This version inserts the larger block in front.
+ *
+ * bp: block ptr
+ */
 void sl_insert_ordered(void *bp) {
     // Place in descending order of size
     if (!bp) return;
@@ -573,6 +654,13 @@ void sl_insert_ordered(void *bp) {
     }
 }
 
+/**
+ * Given a size, computes the index to the appropriate class in
+ * segregated list.
+ *
+ * asize: aligned size
+ * return: index to the corresponding size class.
+ */
 int sl_get_cl_index_by_size(size_t asize) {
     asize = asize >> 6;
     int index = 0;
@@ -585,6 +673,11 @@ int sl_get_cl_index_by_size(size_t asize) {
     return index;
 }
 
+/**
+ * Marks a block as allocated.
+ *
+ * bp: block ptr
+ */
 void sl_place(void *bp) {
   size_t bsize = GET_SIZE(HDRP(bp));
 
