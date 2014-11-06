@@ -94,7 +94,6 @@ void sl_insert_ordered(void *bp);
 size_t sl_get_asize(size_t size);
 void *sl_split_optimize(void *bp, size_t asize);
 
-
 void* heap_listp = NULL;
 
 /**********************************************************
@@ -274,6 +273,8 @@ void *mm_malloc(size_t size)
     if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
         return NULL;
 
+
+
     // Try to split and only get what we need.
     bp = sl_split_optimize(bp, asize);
     sl_place(bp);
@@ -364,27 +365,70 @@ void *mm_realloc(void *ptr, size_t size)
  * Return nonzero if the heap is consistant.
  *********************************************************/
 int mm_check(void){
+    // Do a sweep and collect stats on the current heap.
+
     unsigned int free_blk_count = 0;
     unsigned int alloc_blk_count = 0;
-
+    unsigned int num_blk_in_SL = 0;
+    unsigned int num_blk_in_heap = 0;
+    int prev_alloc = 1;
     size_t free_size = 0;
     size_t alloc_size = 0;
     void *ptr;
 
-    int odd_free_blk = 0;
-
     // Do a sweep and collect stats on the current heap.
+    void *bp = heap_listp;
 
-
-    // Check that all blocks in the free list are not allocated
-    // Check that the number of free blocks counted from sweep
-    // equals the number of blocks in the segregated list
-
+    while(bp != NULL && !(GET_SIZE(HDRP(bp)) == 0 && GET_ALLOC(HDRP(bp)) == 1)){
+        if(GET_ALLOC(HDRP(bp))) {
+            alloc_blk_count += 1;
+            alloc_size += GET_SIZE(HDRP(bp));
+            prev_alloc = 1;
+        }
+        else {
+            // Check if free blocks are coalesced
+            if (prev_alloc == 0){
+                printf("error: two contiguous free blocks\n");
+                return 1;
+            }
+            free_blk_count += 1;
+            free_size += GET_SIZE(HDRP(bp));
+            prev_alloc = 0;
+        }
+        num_blk_in_heap += 1;
+        bp = NEXT_BLKP(bp);
+    }
 
     // Check that all blocks are either free or allocated
     // by adding the size of used blocks and the size of free blocks.
+    if (free_size + alloc_size + DSIZE != mem_heapsize()) {
+        printf("error: free_size=%d, alloc_size=%d, mem_heapsize=%d\n", free_size, alloc_size, mem_heapsize());
+        return 1;
+    }
 
-    // Check that all free blocks on heap can be reached from segregated list
+
+    // Check that all blocks in the free list are not allocated
+    int i;
+    for(i=0; i<SL_CLASSES; i++){
+        ptr = sl[i];
+        while(ptr){
+            if(GET_ALLOC(HDRP(ptr)) != 0) {
+                printf("error: sl block allocated\n");
+                return 1;
+            }
+            num_blk_in_SL += 1;
+            ptr = (void *) GET(SL_NEXT_FREE_BLKP(ptr));
+        }
+    }
+
+    // Check that the number of free blocks counted from sweep
+    // equals the number of blocks in the segregated list
+    if(num_blk_in_SL != free_blk_count) {
+        printf("error: free_blk_count=%d, num_blk_in_sl=%d\n", free_blk_count, num_blk_in_SL);
+        return 1;
+    }
+
+    return 0;
 }
 
 
