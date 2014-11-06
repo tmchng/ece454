@@ -79,7 +79,7 @@ team_t team = {
 #define SL_NEXT_FREE_BLKP(p) ((char *)(p))
 #define SL_PREV_FREE_BLKP(p) ((char *)(p) + WSIZE)
 
-void *sl[SL_CLASSES];
+static void *sl[SL_CLASSES];
 
 // Segregated list function declarations
 void *sl_find_fit(size_t asize);
@@ -365,16 +365,21 @@ void *mm_realloc(void *ptr, size_t size)
  * Return nonzero if the heap is consistant.
  *********************************************************/
 int mm_check(void){
-    // Do a sweep and collect stats on the current heap.
-
     unsigned int free_blk_count = 0;
     unsigned int alloc_blk_count = 0;
     unsigned int num_blk_in_SL = 0;
-    unsigned int num_blk_in_heap = 0;
     int prev_alloc = 1;
     size_t free_size = 0;
     size_t alloc_size = 0;
     void *ptr;
+
+    // Check that there's a proper epilogue.
+    void* epilogue_ptr = (void *)((char *)(heap_listp) + mem_heapsize() - DSIZE);
+
+    if (GET_SIZE(HDRP(epilogue_ptr)) != 0 || GET_ALLOC(HDRP(epilogue_ptr)) != 1) {
+        printf("error: epilogue not properly set.\n");
+        return 1;
+    }
 
     // Do a sweep and collect stats on the current heap.
     void *bp = heap_listp;
@@ -386,7 +391,7 @@ int mm_check(void){
             prev_alloc = 1;
         }
         else {
-            // Check if free blocks are coalesced
+            // Check if free blocks are coalesced properly
             if (prev_alloc == 0){
                 printf("error: two contiguous free blocks\n");
                 return 1;
@@ -395,7 +400,6 @@ int mm_check(void){
             free_size += GET_SIZE(HDRP(bp));
             prev_alloc = 0;
         }
-        num_blk_in_heap += 1;
         bp = NEXT_BLKP(bp);
     }
 
