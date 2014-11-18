@@ -19,4 +19,9 @@ Yes. We can use lock_list to lock the appropriate list with a given key and make
 Q7:
 Using TM was easier since it is built-in and the critical section is well defined. List lock involves understanding the hash table and making appropriate modifications, which was more conplex.
 
+Q8:
+Pros: Each thread can run without synchronization problems. Potentially better performance since threads are no longer sharing memory blocks. Also may result in better cache performance.
+
+Cons: It may require a lot more memory, since we may have multiple objects existing at the same time for the same sample. Also, it takes time to combine the dataset, which may or may not be longer than using mutex locks depending on the data size.
+
 
