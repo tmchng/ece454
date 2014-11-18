@@ -18,3 +18,21 @@ then
         sort -n ./out/randtrack_global_lock_$i.out > ./out/randtrack_global_lock_$i.out
     done
 fi
+
+if [ -f "randtrack_tm" ]
+then
+    echo "Running transactional memory version"
+    for i in 1 2 4; do
+        ./randtrack_tm $i 50 > ./out/randtrack_tm_$i.out
+        sort -n ./out/randtrack_tm_$i.out > ./out/randtrack_tm_$i.out
+    done
+fi
+
+if [ -f "randtrack_list_lock" ]
+then
+    echo "Running list lock version"
+    for i in 1 2 4; do
+        ./randtrack_list_lock $i 50 > ./out/randtrack_list_lock_$i.out
+        sort -n ./out/randtrack_list_lock_$i.out > ./out/randtrack_list_lock_$i.out
+    done
+fi

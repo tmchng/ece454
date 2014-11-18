@@ -1,0 +1,22 @@
+Q1:
+You would essentially be locking the same critical region with multiple locking mechanisms at the same time.
+
+Q2:
+Equally simple, since we have a straight-forward critical region.
+
+Q3:
+If we do not have access to the hash function, then no. We need to know which list is mapped to a given key in order to lock/unlock the right list.
+
+Q4:
+No. Although we can lock the appropriate lists for read and write, we cannot stop the program from changing the sample count from outside.
+
+Q5:
+Yes. Since we have access to the hash function within the hash class, we can lock the appropriate list for a given key, and we can make sure that the sample count is updated before we release the lock.
+
+Q6:
+Yes. We can use lock_list to lock the appropriate list with a given key and make sure that sample count is updated before we release the lock.
+
+Q7:
+Using TM was easier since it is built-in and the critical section is well defined. List lock involves understanding the hash table and making appropriate modifications, which was more conplex.
+
+
