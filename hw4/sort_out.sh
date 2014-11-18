@@ -45,3 +45,12 @@ then
         sort -n ./out/randtrack_element_lock_$i.out > ./out/randtrack_element_lock_$i.out
     done
 fi
+
+if [ -f "randtrack_reduction" ]
+then
+    echo "Running reduction version"
+    for i in 1 2 4; do
+        ./randtrack_reduction $i 50 > ./out/randtrack_reduction_$i.out
+        sort -n ./out/randtrack_reduction_$i.out > ./out/randtrack_reduction_$i.out
+    done
+fi
