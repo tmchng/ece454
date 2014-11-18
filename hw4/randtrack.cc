@@ -9,16 +9,16 @@
 #define RAND_NUM_UPPER_BOUND   100000
 #define NUM_SEED_STREAMS            4
 
-/* 
- * ECE454 Students: 
- * Please fill in the following team struct 
+/*
+ * ECE454 Students:
+ * Please fill in the following team struct
  */
 team_t team = {
-    "Team Name",                  /* Team name */
+    "TeamTW",                  /* Team name */
 
-    "AAA BBB",                    /* First member full name */
-    "9999999999",                 /* First member student number */
-    "AAABBB@CCC",                 /* First member email address */
+    "Ting-Hao (Tim) Cheng",                    /* First member full name */
+    "997289090",                 /* First member student number */
+    "chengti2@ecf.utoronto.ca",                 /* First member email address */
 
     "",                           /* Second member full name */
     "",                           /* Second member student number */
@@ -44,10 +44,10 @@ class sample {
 // This instantiates an empty hash table
 // it is a C++ template, which means we define the types for
 // the element and key value here: element is "class sample" and
-// key value is "unsigned".  
+// key value is "unsigned".
 hash<sample,unsigned> h;
 
-int  
+int
 main (int argc, char* argv[]){
   int i,j,k;
   int rnum;
@@ -69,7 +69,7 @@ main (int argc, char* argv[]){
   // Parse program arguments
   if (argc != 3){
     printf("Usage: %s <num_threads> <samples_to_skip>\n", argv[0]);
-    exit(1);  
+    exit(1);
   }
   sscanf(argv[1], " %d", &num_threads); // not used in this single-threaded version
   sscanf(argv[2], " %d", &samples_to_skip);
@@ -94,7 +94,7 @@ main (int argc, char* argv[]){
 
       // if this sample has not been counted before
       if (!(s = h.lookup(key))){
-	
+
 	// insert a new element for it into the hash table
 	s = new sample(key);
 	h.insert(s);
