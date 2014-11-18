@@ -39,7 +39,7 @@ fi
 
 if [ -f "randtrack_element_lock" ]
 then
-    echo "Running list lock version"
+    echo "Running element lock version"
     for i in 1 2 4; do
         ./randtrack_element_lock $i 50 > ./out/randtrack_element_lock_$i.out
         sort -n ./out/randtrack_element_lock_$i.out > ./out/randtrack_element_lock_$i.out
