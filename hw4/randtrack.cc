@@ -20,9 +20,9 @@ team_t team = {
     "997289090",                 /* First member student number */
     "chengti2@ecf.utoronto.ca",                 /* First member email address */
 
-    "",                           /* Second member full name */
-    "",                           /* Second member student number */
-    ""                            /* Second member email address */
+    "Corey Yen",                           /* Second member full name */
+    "999830090",                           /* Second member student number */
+    "yenyung1@ecf.utoronto.ca"                            /* Second member email address */
 };
 
 unsigned num_threads;

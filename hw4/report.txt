@@ -1,3 +1,6 @@
+Ting-Hao Cheng  997289090
+Corey Yen       999830090
+
 Q1:
 Without #ifdef, you would essentially be locking the same critical region with multiple locking mechanisms at the same time. Also you would be wasting resources for useless data structures.
 
