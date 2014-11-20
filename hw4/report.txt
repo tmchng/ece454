@@ -1,5 +1,5 @@
 Q1:
-You would essentially be locking the same critical region with multiple locking mechanisms at the same time.
+Without #ifdef, you would essentially be locking the same critical region with multiple locking mechanisms at the same time. Also you would be wasting resources for useless data structures.
 
 Q2:
 Equally simple, since we have a straight-forward critical region.
@@ -17,7 +17,7 @@ Q6:
 Yes. We can use lock_list to lock the appropriate list with a given key and make sure that sample count is updated before we release the lock.
 
 Q7:
-Using TM was easier since it is built-in and the critical section is well defined. List lock involves understanding the hash table and making appropriate modifications, which was more conplex.
+Using TM was easier since it is built-in and the critical section is well defined. List lock involves understanding the hash table and making appropriate modifications, which was more complex.
 
 Q8:
 Pros: Each thread can run without synchronization problems. Potentially better performance since threads are no longer sharing memory blocks. Also may result in better cache performance.
@@ -32,15 +32,17 @@ randtrack_global_lock:		19.37	14.34	22.87
 randtrack_tm:			21.01	20.98	13.69		
 randtrack_list_lock:		19.78	10.68	6.74
 randtrack_element_lock:		19.60	10.22	5.84
+randtrack_reduction:            17.58   8.90    4.47
 
 Parallelized Overheads	
 randtrack_global_lock:		19.37/17.69 = 1.09	
 randtrack_tm:			21.01/17.69 = 1.19
 randtrack_list_lock:		19.78/17.69 = 1.12
 randtrack_element_lock:		19.60/17.69 = 1.11
+randtrack_reduction:            17.58/17.69 = 0.99
 
 Q10:
-All approaches other than the global_lock approach acheived an increase in performance as the number of threads increases. The performace of global_lock approach decreased from 2 to 4 threads. This is because the rate of which the threads are accessing the hastable is higher than the rate of threads using the hash table, causing waits which increases the elapsed time.
+All approaches other than the global_lock approach acheived an increase in performance as the number of threads increases. The performace of global_lock approach decreased from 2 to 4 threads. This is probably because threads are hitting the critical section faster than the time it takes to go through the critical section, and there is overhead with additional threads.
 
 Q11:
 samples_to_skip				100
@@ -50,8 +52,9 @@ randtrack_global_lock:		36.64	22.45	19.65
 randtrack_tm:			38.04	29.45	16.47	
 randtrack_list_lock:		36.18	19.37	11.21
 randtrack_element_lock:		37.04	18.94	10.26
+randtrack_reduction:            34.77   17.45   8.72
 
 We can see that the amount of time it takes approximately doubled. This is because instead of skipping 50 samples, we are skipping twice of that number. Which would cause the elapsed time to approximately double.
 
 Q12:
-If the client cares most about the performance, then the element_lock approach should be the right choice for them.
+If performance is the top priority and memory is not an issue, randtrack_reduction runs the fastest. If there is memory constraint, then they might want to choose element_lock, which is the best performing approach that uses locks.
