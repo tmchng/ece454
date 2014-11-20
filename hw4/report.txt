@@ -24,4 +24,34 @@ Pros: Each thread can run without synchronization problems. Potentially better p
 
 Cons: It may require a lot more memory, since we may have multiple objects existing at the same time for the same sample. Also, it takes time to combine the dataset, which may or may not be longer than using mutex locks depending on the data size.
 
+Q9:
+samples_to_skip				50
+num_threads			1	2	4
+randtrack:			17.69	N/A	N/A
+randtrack_global_lock:		19.37	14.34	22.87
+randtrack_tm:			21.01	20.98	13.69		
+randtrack_list_lock:		19.78	10.68	6.74
+randtrack_element_lock:		19.60	10.22	5.84
 
+Parallelized Overheads	
+randtrack_global_lock:		19.37/17.69 = 1.09	
+randtrack_tm:			21.01/17.69 = 1.19
+randtrack_list_lock:		19.78/17.69 = 1.12
+randtrack_element_lock:		19.60/17.69 = 1.11
+
+Q10:
+All approaches other than the global_lock approach acheived an increase in performance as the number of threads increases. The performace of global_lock approach decreased from 2 to 4 threads. This is because the rate of which the threads are accessing the hastable is higher than the rate of threads using the hash table, causing waits which increases the elapsed time.
+
+Q11:
+samples_to_skip				100
+num_threads			1	2	4
+randtrack:			35.05	N/A	N/A
+randtrack_global_lock:		36.64	22.45	19.65
+randtrack_tm:			38.04	29.45	16.47	
+randtrack_list_lock:		36.18	19.37	11.21
+randtrack_element_lock:		37.04	18.94	10.26
+
+We can see that the amount of time it takes approximately doubled. This is because instead of skipping 50 samples, we are skipping twice of that number. Which would cause the elapsed time to approximately double.
+
+Q12:
+If the client cares most about the performance, then the element_lock approach should be the right choice for them.
