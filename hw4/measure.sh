@@ -58,7 +58,7 @@ done
 c=1
 while [ $c -le 5 ]
 do
-if [ -f "randtrack_element_lock" ]
+if [ -f "arandtrack_element_lock" ]
 then
     echo "Running element lock version"
     for i in 1 2 4; do
@@ -70,11 +70,16 @@ fi
 	(( c++ ))
 done	
 	
-if [ -f "arandtrack_reduction" ]
-then
-    echo "Running reduction version"
-    for i in 1 2 4; do
-        ./randtrack_reduction $i 50 > ./measure_1_out/randtrack_reduction_$i.out
-        sort -n ./measure_out/randtrack_reduction_$i.out > ./measure_1_out/randtrack_reduction_$i.out
-    done
-fi
+c=1
+while [ $c -le 5 ]
+do
+    if [ -f "randtrack_reduction" ]
+    then
+        echo "Running reduction version"
+        for i in 1 2 4; do
+            /usr/bin/time ./randtrack_reduction $i 100 > ./measure_1_out/randtrack_reduction_$i.out
+        done
+    fi
+
+    (( c++ ))
+done
