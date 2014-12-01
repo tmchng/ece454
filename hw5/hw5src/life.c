@@ -231,6 +231,74 @@ void *gol_task_runner(void *args) {
   pthread_exit(NULL);
 }
 
+/*
+void *gol_task_runner(void *args) {
+  const int t_i = get_thread_index();
+  const int LDA = board_size;
+
+  int start_i, start_j, i_size, j_size;
+  int i, j;
+  int inorth, isouth, jwest, jeast;
+  char neighbor_count;
+  struct board_section section;
+
+  get_board_section(&section, t_i);
+  start_i = section.start_i;
+  start_j = section.start_j;
+  j_size = section.j_size;
+  i_size = section.i_size;
+
+  printf("runner %d gets %d to %d\n", t_i, start_j, start_j + j_size - 1);
+
+  while (curgen < gens_max) {
+    // TODO: tile the loop
+    for (j = start_j; j < start_j+j_size; j++) {
+      jwest = mod (j-1, board_size);
+      jeast = mod (j+1, board_size);
+
+      for (i = start_i; i < start_i+i_size; i++) {
+        inorth = mod (i-1, board_size);
+        isouth = mod (i+1, board_size);
+
+        neighbor_count =
+          BOARD (inboard, inorth, jwest) +
+          BOARD (inboard, inorth, j) +
+          BOARD (inboard, inorth, jeast) +
+          BOARD (inboard, i, jwest) +
+          BOARD (inboard, i, jeast) +
+          BOARD (inboard, isouth, jwest) +
+          BOARD (inboard, isouth, j) +
+          BOARD (inboard, isouth, jeast);
+
+        BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+      }
+    }
+
+    // Signal that the runner is done and waiting
+    pthread_mutex_lock(&runner_wait_mutex);
+    //printf("runner %d done\n", t_i);
+    waiting_runners++;
+    if (waiting_runners >= NUM_THREADS) {
+      //printf("runner %d signal wait cv\n", t_i);
+      pthread_cond_signal(&runner_wait_cv);
+    }
+    pthread_mutex_unlock(&runner_wait_mutex);
+
+    // Wait for start signal before running next gen
+    pthread_mutex_lock(&runner_start_mutexes[t_i]);
+    //printf("runner %d wait for start signal\n", t_i);
+    while (runner_start[t_i] == 0) {
+      pthread_cond_wait(&runner_start_cvs[t_i], &runner_start_mutexes[t_i]);
+    }
+    //printf("runner %d resuming\n", t_i);
+    runner_start[t_i] = 0;
+    pthread_mutex_unlock(&runner_start_mutexes[t_i]);
+  }
+
+  pthread_exit(NULL);
+}
+*/
+
 void multithread_init() {
   int i;
   pthread_mutex_init(&runner_wait_mutex, NULL);
