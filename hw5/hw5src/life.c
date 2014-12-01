@@ -155,7 +155,7 @@ void *gol_task_runner(void *args) {
   const int LDA = board_size;
 
   int start_i, start_j, i_size, j_size;
-  int i, j;
+  int i, j, i2, j2;
   int inorth, isouth, jwest, jeast;
   char neighbor_count;
   struct board_section section;
@@ -166,29 +166,44 @@ void *gol_task_runner(void *args) {
   j_size = section.j_size;
   i_size = section.i_size;
 
-  printf("runner %d gets %d to %d\n", t_i, start_j, start_j + j_size - 1);
+  int i_chunk_size = 128;
+  int j_chunk_size = 64;
+  int i_end, j_end;
+  int j2_end = start_j + j_size;
+  int i2_end = start_i + i_size;
+
 
   while (curgen < gens_max) {
     // TODO: tile the loop
-    for (j = start_j; j < start_j+j_size; j++) {
-      jwest = mod (j-1, board_size);
-      jeast = mod (j+1, board_size);
+    for (j2 = start_j; j2 < j2_end; j2+=j_chunk_size) {
+      j_end = j2 + j_chunk_size;
+      if (j_end > j2_end) j_end = j2_end;
 
-      for (i = start_i; i < start_i+i_size; i++) {
-        inorth = mod (i-1, board_size);
-        isouth = mod (i+1, board_size);
+      for (i2 = start_i; i2 < i2_end; i2+=i_chunk_size) {
+        i_end = i2 + i_chunk_size;
+        if (i_end > i2_end) i_end = i2_end;
 
-        neighbor_count =
-          BOARD (inboard, inorth, jwest) +
-          BOARD (inboard, inorth, j) +
-          BOARD (inboard, inorth, jeast) +
-          BOARD (inboard, i, jwest) +
-          BOARD (inboard, i, jeast) +
-          BOARD (inboard, isouth, jwest) +
-          BOARD (inboard, isouth, j) +
-          BOARD (inboard, isouth, jeast);
+        for (j = j2; j < j_end; j++) {
+          jwest = mod (j-1, board_size);
+          jeast = mod (j+1, board_size);
 
-        BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+          for (i = i2; i < i_end; i++) {
+            inorth = mod (i-1, board_size);
+            isouth = mod (i+1, board_size);
+
+            neighbor_count =
+              BOARD (inboard, inorth, jwest) +
+              BOARD (inboard, inorth, j) +
+              BOARD (inboard, inorth, jeast) +
+              BOARD (inboard, i, jwest) +
+              BOARD (inboard, i, jeast) +
+              BOARD (inboard, isouth, jwest) +
+              BOARD (inboard, isouth, j) +
+              BOARD (inboard, isouth, jeast);
+
+            BOARD(outboard, i, j) = alivep(neighbor_count, BOARD(inboard, i, j));
+          }
+        }
       }
     }
 
