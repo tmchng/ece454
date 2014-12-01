@@ -8,7 +8,6 @@
 #include "load.h"
 #include "save.h"
 
-#define VERIFY_FLAG
 #ifdef VERIFY_FLAG
 #define DO_VERIFY 1
 #else // VERIFY_FLAG

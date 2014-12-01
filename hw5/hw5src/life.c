@@ -30,7 +30,8 @@
 struct board_section {
   int start_i;
   int start_j;
-  int size;
+  int i_size;
+  int j_size;
 };
 
 // Global board variables
@@ -71,6 +72,8 @@ game_of_life (char* _outboard,
   assert(board_size >= MIN_BOARD_SIZE);
   assert((board_size & (board_size-1)) == 0);
 
+  if (_gens_max <= 0) return _inboard;
+
   if (board_size <= 32) {
     // No need to parallelize
     return sequential_game_of_life (outboard, inboard, nrows, ncols, gens_max);
@@ -106,16 +109,17 @@ game_of_life (char* _outboard,
     curgen++;
     waiting_runners = 0;
     SWAP_BOARDS(outboard, inboard);
-    resume_task_runners();
     pthread_mutex_unlock(&runner_wait_mutex);
+
+    resume_task_runners();
   }
 
   // Wait for runners to finish
-  for (i = 0; i < NUM_THREADS; i++) {
-    pthread_join(threads[i], NULL);
-  }
+  //for (i = 0; i < NUM_THREADS; i++) {
+  //  pthread_join(threads[i], NULL);
+  //}
 
-  return outboard;
+  return inboard;
 }
 
 void resume_task_runners() {
@@ -130,68 +134,49 @@ void resume_task_runners() {
 }
 
 void get_board_section(struct board_section *section, int t_i) {
-  assert(section);
-  int start_i,  start_j;
-  int size = (int) board_size/2;
-
   assert(t_i >= 0);
-  assert(size*2 == board_size);
+  assert(section);
 
-  // Divide board into 4 sections, from left to right and top to bottom 1 2 3 4
-  switch (t_i) {
-    case 0:
-      start_i = 0;
-      start_j = 0;
-      break;
+  int start_i,  start_j;
+  int i_size = board_size;
+  int j_size = (int)board_size / NUM_THREADS;
 
-    case 1:
-      start_i = size;
-      start_j = 0;
-      break;
-
-    case 2:
-      start_i = 0;
-      start_j = size;
-      break;
-
-    case 3:
-      start_i = size;
-      start_j = size;
-      break;
-
-    default:
-      assert(!"Invalid number of threads");
-      break;
-  }
+  start_i = 0;
+  start_j = (int)(t_i * j_size);
 
   section->start_i = start_i;
   section->start_j = start_j;
-  section->size = size;
+  section->i_size = i_size;
+  section->j_size = j_size;
 }
 
 void *gol_task_runner(void *args) {
   const int t_i = get_thread_index();
   const int LDA = board_size;
 
-  int start_i, start_j, section_size;
-  struct board_section section;
+  int start_i, start_j, i_size, j_size;
   int i, j;
   int inorth, isouth, jwest, jeast;
   char neighbor_count;
+  struct board_section section;
 
   get_board_section(&section, t_i);
   start_i = section.start_i;
   start_j = section.start_j;
-  section_size = section.size;
+  j_size = section.j_size;
+  i_size = section.i_size;
+
+  printf("runner %d gets %d to %d\n", t_i, start_j, start_j + j_size - 1);
 
   while (curgen < gens_max) {
     // TODO: tile the loop
-    for (j = start_j; j < section_size; j++) {
-      for (i = start_i; i < section_size; i++) {
+    for (j = start_j; j < start_j+j_size; j++) {
+      jwest = mod (j-1, board_size);
+      jeast = mod (j+1, board_size);
+
+      for (i = start_i; i < start_i+i_size; i++) {
         inorth = mod (i-1, board_size);
         isouth = mod (i+1, board_size);
-        jwest = mod (j-1, board_size);
-        jeast = mod (j+1, board_size);
 
         neighbor_count =
           BOARD (inboard, inorth, jwest) +
