@@ -18,14 +18,16 @@ TIMER_TYPE=USE_GETTIMEOFDAY
 # EDIT this as necessary to support your system.
 #
 USE_GCC=1
+OPTFLAGS = -O3 -lpthread -pthread
+
 ifeq ($(USE_GCC),1)
 	CC = gcc
 	LINKER = gcc
-	COPTFLAGS = -Wall -g -O2
+	COPTFLAGS = -Wall -g $(OPTFLAGS)
 else
 	CC = icc
 	LINKER = icc
-	COPTFLAGS = -g -O2
+	COPTFLAGS = -g $(OPTFLAGS)
 endif
 
 CPPFLAGS += -D$(TIMER_TYPE) 

@@ -8,6 +8,7 @@
 #include "load.h"
 #include "save.h"
 
+#define VERIFY_FLAG
 #ifdef VERIFY_FLAG
 #define DO_VERIFY 1
 #else // VERIFY_FLAG
@@ -29,10 +30,10 @@ to_int (int* num, const char* s)
     return 0;
 }
 
-static void 
+static void
 print_usage (const char argv0[])
 {
-  fprintf (stderr, 
+  fprintf (stderr,
 	   "\nUsage: %s <num_generations> <infilename> <outfilename>\n\n"
 	   "\t<num_generations>: nonnegative number of generations\n"
 	   "\t<infilename>:      file from which to load initial board configuration\n"
@@ -61,7 +62,7 @@ boards_equalp (const char b1[], const char b2[], const int nrows, const int ncol
   return 1;
 }
 
-int 
+int
 main (int argc, char* argv[])
 {
   /*
@@ -86,12 +87,12 @@ main (int argc, char* argv[])
   if (argc < argc_min || argc > argc_max)
     {
       fprintf (stderr, "*** Wrong number of command-line arguments; "
-	       "got %d, need at least %d and no more than %d ***\n", 
+	       "got %d, need at least %d and no more than %d ***\n",
 	       argc - 1, argc_min - 1, argc_max - 1);
       print_usage (argv[0]);
       exit (EXIT_FAILURE);
     }
-  
+
   err = to_int (&gens_max, argv[1]);
   if (err != 0)
     {
@@ -101,7 +102,7 @@ main (int argc, char* argv[])
       exit (EXIT_FAILURE);
     }
 
-  /* Open input and output files */ 
+  /* Open input and output files */
   input = fopen (argv[2], "r");
   if (input == NULL)
     {
@@ -138,7 +139,7 @@ main (int argc, char* argv[])
       copy_board (checkboard, inboard, nrows, ncols);
     }
 
-  /* 
+  /*
    * Evolve board gens_max ticks, and time the evolution.  You will
    * parallelize the game_of_life() function for this assignment.
    */
