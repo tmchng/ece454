@@ -140,9 +140,9 @@ game_of_life (char* outboard,
   }
 
   // Wait for runners to finish
-  //for (i = 0; i < NUM_THREADS; i++) {
-  //  pthread_join(threads[i], NULL);
-  //}
+  for (i = 0; i < NUM_THREADS; i++) {
+    pthread_join(threads[i], NULL);
+  }
 
   return inboard;
 }
@@ -353,8 +353,8 @@ void gol_task_runner_1(void *args) {
 }
 
 void *gol_task_runner(void *args) {
-  //gol_task_runner_1(args);
-  gol_task_runner_2(args);
+  gol_task_runner_1(args);
+  //gol_task_runner_2(args);
   pthread_exit(NULL);
 }
 
