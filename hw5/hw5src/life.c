@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
+#include <string.h>
 #include "life.h"
 #include "util.h"
 
@@ -14,6 +15,7 @@
  ****************************************************************************/
 #define NUM_THREADS 4
 #define MIN_BOARD_SIZE 32
+#define BENCH_BOARD_SIZE 1024
 
 /**
  * Swapping the two boards only involves swapping pointers, not
@@ -25,7 +27,14 @@
   b2 = temp; \
 } while(0)
 
-#define BOARD( __board, __i, __j )  (__board[(__i) + LDA*(__j)])
+#define BOARD( __board, __i, __j )  (__board[(__i) + board_size*(__j)])
+#define IS_ALIVE(cell) ((cell >> 4) & 1)
+#define MARK_ALIVE(cell) (cell |= (1 << (4)))
+#define MARK_DEAD(cell) (cell &= ~(1 << (4)))
+#define SHOULD_DIE(cell) ((cell <= (char)0x11 || cell >= (char)0x14))
+#define SHOULD_SPAWN(cell) (cell == (char)0x3)
+#define INCR_NEIGHBOURS(__board, __i, __j)  (BOARD(__board, __i, __j)+=1)
+#define DECR_NEIGHBOURS(__board, __i, __j)  (BOARD(__board, __i, __j)-=1)
 
 struct board_section {
   int start_i;
@@ -48,7 +57,7 @@ struct pkg {
   int *runner_start;
 };
 
-
+void init_board_neighbours(char *board, int board_size);
 void resume_task_runners(struct pkg pkgs[]);
 void get_board_section(struct board_section *section, int board_size, int t_i);
 void *gol_task_runner(void *args);
@@ -73,7 +82,7 @@ game_of_life (char* outboard,
 
   if (gens_max <= 0) return inboard;
 
-  if (board_size <= 32) {
+  if (board_size <= 64) {
     // No need to parallelize
     return sequential_game_of_life (outboard, inboard, nrows, ncols, gens_max);
   }
@@ -114,6 +123,12 @@ game_of_life (char* outboard,
     pkgs[i].runner_start = &runner_start[i];
   }
 
+  if (board_size >= BENCH_BOARD_SIZE) {
+    // Initialize the board for neighbor count
+    init_board_neighbours(inboard, board_size);
+    memmove(outboard, inboard, board_size*board_size*sizeof(char));
+  }
+
   // Start task runners
   for (i = 0; i < NUM_THREADS; i++) {
     retval = pthread_create(&threads[i], NULL, &gol_task_runner, &pkgs[i]);
@@ -134,7 +149,11 @@ game_of_life (char* outboard,
     //printf("exit from wait curgen\n");
     curgen++;
     waiting_runners = 0;
+    //printf("copied boards\n");
     pthread_mutex_unlock(&runner_wait_mutex);
+
+    // copy the outboard
+    memmove(inboard, outboard, board_size*board_size*sizeof(char));
 
     resume_task_runners(pkgs);
   }
@@ -144,7 +163,15 @@ game_of_life (char* outboard,
     pthread_join(threads[i], NULL);
   }
 
-  return inboard;
+  if (board_size >= BENCH_BOARD_SIZE) {
+    // Format board to 1 and 0
+    // Loop unroll
+    for (i = 0; i < board_size*board_size; i+=2) {
+      outboard[i] = IS_ALIVE(outboard[i]);
+      outboard[i+1] = IS_ALIVE(outboard[i+1]);
+    }
+  }
+  return outboard;
 }
 
 void resume_task_runners(struct pkg pkgs[]) {
@@ -175,12 +202,12 @@ void get_board_section(struct board_section *section, int board_size, int t_i) {
   section->j_size = j_size;
 }
 
+/*
 void gol_task_runner_2(void *args) {
   // Tiled version
   // Unpack pkg
   const struct pkg *pkg = (struct pkg*) args;
   const int board_size = pkg->board_size;
-  const int LDA = board_size;
   const int t_i = pkg->t_i;
   char *inboard = pkg->inboard;
   char *outboard = pkg->outboard;
@@ -270,12 +297,113 @@ void gol_task_runner_2(void *args) {
     curgen++;
   }
 }
+*/
+
+void gol_task_runner_3(void *args) {
+  // Unpack pkg to avoid using pointers
+  const struct pkg *pkg = (struct pkg*) args;
+  const int board_size = pkg->board_size;
+  const int t_i = pkg->t_i;
+  char *inboard = pkg->inboard;
+  char *outboard = pkg->outboard;
+  const int gens_max = pkg->gens_max;
+  pthread_mutex_t *runner_wait_mutex = pkg->runner_wait_mutex;
+  pthread_cond_t *runner_wait_cv = pkg->runner_wait_cv;
+  pthread_mutex_t *runner_start_mutex = pkg->runner_start_mutex;
+  pthread_cond_t *runner_start_cv = pkg->runner_start_cv;
+  int *waiting_runners = pkg->waiting_runners;
+  int *runner_start = pkg->runner_start;
+
+  int start_i, start_j, i_size, j_size;
+  int i, j;
+  int inorth, isouth, jwest, jeast;
+  struct board_section section;
+  int curgen = 0;
+
+  get_board_section(&section, board_size, t_i);
+  start_i = section.start_i;
+  start_j = section.start_j;
+  j_size = section.j_size;
+  i_size = section.i_size;
+
+  //printf("runner %d gets %d to %d\n", t_i, start_j, start_j + j_size - 1);
+
+  while (curgen < gens_max) {
+    for (j = start_j; j < start_j+j_size; j++) {
+      for (i = start_i; i < start_i+i_size; i++) {
+        char cell = BOARD(inboard, i, j);
+        if (IS_ALIVE(cell)) {
+          // Check if we should kill the cell
+          if (SHOULD_DIE(cell)) {
+            MARK_DEAD(BOARD(outboard, i, j));
+
+            jwest = mod (j-1, board_size);
+            jeast = mod (j+1, board_size);
+            inorth = mod (i-1, board_size);
+            isouth = mod (i+1, board_size);
+
+            // Update neighbours;
+            DECR_NEIGHBOURS(outboard, inorth, jwest);
+            DECR_NEIGHBOURS(outboard, inorth, j);
+            DECR_NEIGHBOURS(outboard, inorth, jeast);
+            DECR_NEIGHBOURS(outboard, i, jwest);
+            DECR_NEIGHBOURS(outboard, i, jeast);
+            DECR_NEIGHBOURS(outboard, isouth, jwest);
+            DECR_NEIGHBOURS(outboard, isouth, j);
+            DECR_NEIGHBOURS(outboard, isouth, jeast);
+          }
+        } else {
+          // Check if we should make a cell
+          if (SHOULD_SPAWN(cell)) {
+            MARK_ALIVE(BOARD(outboard, i, j));
+
+            jwest = mod (j-1, board_size);
+            jeast = mod (j+1, board_size);
+            inorth = mod (i-1, board_size);
+            isouth = mod (i+1, board_size);
+
+            // Update neighbours;
+            INCR_NEIGHBOURS(outboard, inorth, jwest);
+            INCR_NEIGHBOURS(outboard, inorth, j);
+            INCR_NEIGHBOURS(outboard, inorth, jeast);
+            INCR_NEIGHBOURS(outboard, i, jwest);
+            INCR_NEIGHBOURS(outboard, i, jeast);
+            INCR_NEIGHBOURS(outboard, isouth, jwest);
+            INCR_NEIGHBOURS(outboard, isouth, j);
+            INCR_NEIGHBOURS(outboard, isouth, jeast);
+          }
+        }
+      }
+    }
+
+    // Signal that the runner is done and waiting
+    pthread_mutex_lock(runner_wait_mutex);
+    *waiting_runners = *waiting_runners + 1;
+    //printf("runner %d done: %dth\n", t_i, *waiting_runners);
+    if (*waiting_runners >= NUM_THREADS) {
+      //printf("runner %d signal wait cv\n", t_i);
+      pthread_cond_signal(runner_wait_cv);
+    }
+    pthread_mutex_unlock(runner_wait_mutex);
+
+    // Wait for start signal before running next gen
+    pthread_mutex_lock(runner_start_mutex);
+    //printf("runner %d wait for start signal\n", t_i);
+    while (*runner_start == 0) {
+      pthread_cond_wait(runner_start_cv, runner_start_mutex);
+    }
+    //printf("runner %d resuming\n", t_i);
+    *runner_start = 0;
+    pthread_mutex_unlock(runner_start_mutex);
+
+    curgen++;
+  }
+}
 
 void gol_task_runner_1(void *args) {
   // Unpack pkg
   const struct pkg *pkg = (struct pkg*) args;
   const int board_size = pkg->board_size;
-  const int LDA = board_size;
   const int t_i = pkg->t_i;
   char *inboard = pkg->inboard;
   char *outboard = pkg->outboard;
@@ -315,8 +443,7 @@ void gol_task_runner_1(void *args) {
         neighbor_count =
           BOARD (inboard, inorth, jwest) +
           BOARD (inboard, inorth, j) +
-          BOARD (inboard, inorth, jeast) +
-          BOARD (inboard, i, jwest) +
+          BOARD (inboard, inorth, jeast) + BOARD (inboard, i, jwest) +
           BOARD (inboard, i, jeast) +
           BOARD (inboard, isouth, jwest) +
           BOARD (inboard, isouth, j) +
@@ -346,15 +473,52 @@ void gol_task_runner_1(void *args) {
     *runner_start = 0;
     pthread_mutex_unlock(runner_start_mutex);
 
-    SWAP_BOARDS(outboard, inboard);
     curgen++;
   }
-
 }
 
 void *gol_task_runner(void *args) {
-  gol_task_runner_1(args);
-  //gol_task_runner_2(args);
+  const struct pkg *pkg = (struct pkg*) args;
+  // Run the best version for board size
+  if (pkg->board_size >= BENCH_BOARD_SIZE) {
+    gol_task_runner_3(args); // neighbour count
+  } else {
+    gol_task_runner_1(args); // Normal
+  }
   pthread_exit(NULL);
 }
+
+void init_board_neighbours(char *board, int board_size) {
+  // Initialize board for neighbour counts
+  int i, j;
+  for (j = 0; j < board_size*board_size; j++) {
+    if (board[j] == (char)1) {
+      board[j] = 0;
+      MARK_ALIVE(board[j]);
+    }
+  }
+
+  int inorth, isouth, jwest, jeast;
+  for (j = 0; j < board_size; j++) {
+    jwest = mod (j-1, board_size);
+    jeast = mod (j+1, board_size);
+    for (i = 0; i < board_size; i++) {
+      if (IS_ALIVE(BOARD(board, i, j))) {
+        inorth = mod (i-1, board_size);
+        isouth = mod (i+1, board_size);
+
+        INCR_NEIGHBOURS(board, inorth, jwest);
+        INCR_NEIGHBOURS(board, inorth, j);
+        INCR_NEIGHBOURS(board, inorth, jeast);
+        INCR_NEIGHBOURS(board, i, jwest);
+        INCR_NEIGHBOURS(board, i, jeast);
+        INCR_NEIGHBOURS(board, isouth, jwest);
+        INCR_NEIGHBOURS(board, isouth, j);
+        INCR_NEIGHBOURS(board, isouth, jeast);
+
+      }
+    }
+  }
+}
+
 
