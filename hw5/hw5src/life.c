@@ -27,6 +27,9 @@
   b2 = temp; \
 } while(0)
 
+/**
+ * Helper macros
+ */
 #define BOARD( __board, __i, __j )  (__board[(__i) + board_size*(__j)])
 #define IS_ALIVE(cell) ((cell >> 4) & 1)
 #define MARK_ALIVE(cell) (cell |= (1 << (4)))
@@ -36,6 +39,9 @@
 #define INCR_NEIGHBOURS(__board, __i, __j)  (BOARD(__board, __i, __j)+=1)
 #define DECR_NEIGHBOURS(__board, __i, __j)  (BOARD(__board, __i, __j)-=1)
 
+/**
+ * Structure that contains board section info
+ */
 struct board_section {
   int start_i;
   int start_j;
@@ -43,6 +49,9 @@ struct board_section {
   int j_size;
 };
 
+/**
+ * Structure that contains all things needed by a thread to run correctly.
+ */
 struct pkg {
   int t_i;
   char *inboard;
@@ -58,6 +67,9 @@ struct pkg {
   pthread_barrier_t *barrier;
 };
 
+/**
+ * Function declarations
+ */
 void init_board_neighbours(char *board, int board_size);
 static inline void process_cell(char *outboard, char *inboard, int i, int j, const int board_size);
 void resume_task_runners(struct pkg pkgs[]);
@@ -104,7 +116,7 @@ game_of_life (char* outboard,
   pthread_cond_t runner_start_cvs[NUM_THREADS];
   pthread_barrier_t barrier;
 
-  // Initialize mutexes and cvs.
+  // Initialize mutexes and cvs and barriers.
   pthread_mutex_init(&runner_wait_mutex, NULL);
   pthread_cond_init(&runner_wait_cv, NULL);
   for (i = 0; i < NUM_THREADS; i++){
@@ -177,6 +189,9 @@ game_of_life (char* outboard,
   return outboard;
 }
 
+/**
+ * Signal the runners to resume
+ */
 void resume_task_runners(struct pkg pkgs[]) {
   int i;
   for (i = 0; i < NUM_THREADS; i++) {
@@ -188,6 +203,10 @@ void resume_task_runners(struct pkg pkgs[]) {
   }
 }
 
+/**
+ * Assigns board section to each thread in order to
+ * parallelize work.
+ */
 void get_board_section(struct board_section *section, int board_size, int t_i) {
   assert(t_i >= 0);
   assert(section);
@@ -205,6 +224,9 @@ void get_board_section(struct board_section *section, int board_size, int t_i) {
   section->j_size = j_size;
 }
 
+/**
+ * Main runner task that processes the board.
+ */
 void gol_task_neighbours(void *args) {
   // Unpack pkg to avoid using pointers
   const struct pkg *pkg = (struct pkg*) args;
@@ -280,6 +302,9 @@ void gol_task_neighbours(void *args) {
   }
 }
 
+/**
+ * Process a cell and determine the new state.
+ */
 static inline void process_cell(char *outboard, char *inboard, int i, int j, const int board_size) {
   int inorth, isouth, jwest, jeast;
   char cell = BOARD(inboard, i, j);
@@ -326,11 +351,17 @@ static inline void process_cell(char *outboard, char *inboard, int i, int j, con
   }
 }
 
+/**
+ * The runner thread function.
+ */
 void *gol_task_runner(void *args) {
   gol_task_neighbours(args); // neighbour count
   pthread_exit(NULL);
 }
 
+/**
+ * Initialize neighbour counts for a new board.
+ */
 void init_board_neighbours(char *board, int board_size) {
   // Initialize board for neighbour counts
   int i, j;
@@ -364,6 +395,9 @@ void init_board_neighbours(char *board, int board_size) {
   }
 }
 
+/**
+ * Simpler and faster mod that works for GOL
+ */
 static inline int mod_i(int i, int m) {
   if (i < 0) return m + i;
   return (i < m) ? i : i-m;
